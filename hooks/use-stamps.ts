@@ -204,14 +204,14 @@ export function useStamps({
     };
   }, []);
 
-  // Clear stamps only when the authenticated user genuinely changes — i.e. a
-  // sign-out (userId → null) or an account switch (userIdA → userIdB).
+  // Clear stamps whenever the authenticated user genuinely changes — i.e. a
+  // sign-out (userId → null), an account switch (userIdA → userIdB), or a
+  // fresh sign-in after a sign-out (null → userIdB).
   //
-  // We must NOT clear on the very first effect run, because on the client
-  // Clerk always starts with userId = undefined/null while it initialises,
-  // even when the server already knew the real userId and pre-rendered stamps.
-  // Clearing here caused a hydration mismatch: the server HTML contained <img>
-  // tags for the stamps, but the client wiped them before React could reconcile.
+  // The only case we skip is the very first effect run (sentinel undefined),
+  // because on the client Clerk always starts with userId = undefined/null
+  // while it initialises, even when the server already knew the real userId
+  // and pre-rendered stamps. Clearing here would cause a hydration mismatch.
   useEffect(() => {
     const prevId = prevResolvedUserIdRef.current;
     prevResolvedUserIdRef.current = resolvedUserId;
@@ -219,10 +219,9 @@ export function useStamps({
     // First render (sentinel undefined) — Clerk hasn't reported anything yet.
     if (prevId === undefined) return;
 
-    // Clerk is still initialising (null → real userId) — don't touch stamps.
-    if (prevId === null) return;
-
-    // The user actually changed (sign-out or account switch) — clear everything.
+    // The user changed (sign-out, account switch, or sign-in after sign-out)
+    // — clear the entire cache and wipe stamps from state immediately so the
+    // previous user's images are never visible while the new fetch is in flight.
     if (resolvedUserId !== prevId) {
       stampCache.clear();
       setStamps((prev) => {
@@ -258,6 +257,14 @@ export function useStamps({
     }
 
     // ── Nothing cached — fetch and show loading ────────────────────────
+    // Clear any stale stamps from a previous user immediately so they are
+    // never visible while the new fetch is in flight.
+    setStamps((prev) => {
+      for (const url of prev.values()) {
+        if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+      }
+      return new Map();
+    });
     let cancelled = false;
     setLoading(true);
 
