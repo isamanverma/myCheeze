@@ -11,12 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import {
-  processStampImage,
-  STAMP_ASPECT_W,
-  STAMP_ASPECT_H,
-  type CropArea,
-} from "@/lib/image-processor";
+import { processStampImage, type CropArea } from "@/lib/image-processor";
 import { UploadSimple, Stamp as StampIcon } from "@phosphor-icons/react";
 
 interface StampCutterDialogProps {
@@ -52,7 +47,10 @@ export function StampCutterDialog({
   useEffect(() => {
     if (!open) {
       setFile(null);
-      setImgSrc(null);
+      setImgSrc((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
       setZoom(1);
       setPan({ x: 0, y: 0 });
       setProcessing(false);
@@ -65,10 +63,16 @@ export function StampCutterDialog({
       if (!f) return;
       setFile(f);
       const url = URL.createObjectURL(f);
-      setImgSrc(url);
+      // Revoke the previous preview blob URL before replacing it so the
+      // browser cannot recycle the same URL token for a different file,
+      // which would cause the old image to appear when the new one is loaded.
+      setImgSrc((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
       setZoom(1);
       setPan({ x: 0, y: 0 });
-
+      // Read natural dimensions from the same URL — no second createObjectURL needed.
       const img = new Image();
       img.onload = () => {
         setImgNatW(img.naturalWidth);
@@ -85,8 +89,15 @@ export function StampCutterDialog({
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d")!;
 
+    // Guard against stale draws: if zoom/pan fires a new effect before this
+    // image finishes loading, the cleanup sets cancelled = true so the
+    // outdated onload callback skips painting over the fresher frame.
+    let cancelled = false;
+
     const img = new Image();
     img.onload = () => {
+      if (cancelled) return;
+
       ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
 
       // Background
@@ -112,6 +123,10 @@ export function StampCutterDialog({
       drawStampBorder(ctx, PREVIEW_W, PREVIEW_H);
     };
     img.src = imgSrc;
+
+    return () => {
+      cancelled = true;
+    };
   }, [imgSrc, zoom, pan]);
 
   const handleMouseDown = useCallback(
@@ -257,7 +272,10 @@ export function StampCutterDialog({
               size="sm"
               onClick={() => {
                 setFile(null);
-                setImgSrc(null);
+                setImgSrc((prev) => {
+                  if (prev) URL.revokeObjectURL(prev);
+                  return null;
+                });
                 setZoom(1);
                 setPan({ x: 0, y: 0 });
                 if (fileInputRef.current) fileInputRef.current.value = "";

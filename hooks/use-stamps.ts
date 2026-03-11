@@ -304,7 +304,6 @@ export function useStamps({
       }
 
       if (blob.size > DAILY_STAMP_LIMIT_BYTES) {
-        URL.revokeObjectURL(blobUrl);
         throw new Error("This stamp is larger than 10KB. Try a simpler crop.");
       }
 
@@ -399,7 +398,7 @@ export function useStamps({
       setStamps((prev) => {
         const next = new Map(prev);
         const url = next.get(dateStr);
-        if (url) URL.revokeObjectURL(url);
+        if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
         next.delete(dateStr);
         return next;
       });
