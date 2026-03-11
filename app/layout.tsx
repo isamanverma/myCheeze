@@ -43,14 +43,7 @@ export const metadata: Metadata = {
   publisher: "Cheeze",
   applicationName: "Cheeze",
   category: "photography",
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/logo.png", type: "image/png" },
-    ],
-    apple: "/logo.png",
-    shortcut: "/favicon.ico",
-  },
+
   openGraph: {
     type: "website",
     url: BASE_URL,
