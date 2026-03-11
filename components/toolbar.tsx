@@ -110,7 +110,7 @@ export function Toolbar({
       {/* Center: Logo + Wordmark */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2">
         <Image
-          src="/logo.png"
+          src="/icon.png"
           alt="Cheeze logo"
           width={28}
           height={28}
