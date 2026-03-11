@@ -116,7 +116,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  const { data: signedData, error: signedError } = await supabaseAdmin.storage
+    .from(STAMPS_BUCKET)
+    .createSignedUrl(path, 60 * 60 * 24 * 7); // 7-day expiry
+
+  if (signedError || !signedData?.signedUrl) {
+    return NextResponse.json(
+      { error: signedError?.message ?? "Failed to create signed URL" },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ ok: true, url: signedData.signedUrl });
 }
 
 export async function DELETE(request: Request) {

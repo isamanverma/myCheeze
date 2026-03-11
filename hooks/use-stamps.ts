@@ -324,18 +324,47 @@ export function useStamps({
         throw new Error(data?.error ?? "Failed to save stamp.");
       }
 
-      // Invalidate the cache for this month so the next visit re-fetches
+      const responseData = (await response.json().catch(() => null)) as {
+        ok: boolean;
+        url?: string;
+      } | null;
+
+      // Use the signed URL returned by the server so that the in-memory state
+      // and the module-level cache always hold a real, storage-backed URL.
+      // Falling back to the local blobUrl would cause cache hits in the same
+      // session to serve a stale blob that may point to a completely different
+      // image in memory.
+      const stampUrl = responseData?.url ?? blobUrl;
+
       const monthNum = Number(dateStr.slice(5, 7));
       const yearNum = Number(dateStr.slice(0, 4));
-      invalidateCache(resolvedUserId, yearNum, monthNum);
+
+      // Update the cache in-place with the new stamp URL so that subsequent
+      // cache hits within the TTL window serve the correct image without a
+      // round-trip to the server.
+      const cached = getCached(resolvedUserId, yearNum, monthNum);
+      if (cached) {
+        const updatedCache = new Map(cached);
+        updatedCache.set(dateStr, stampUrl);
+        setCached(resolvedUserId, yearNum, monthNum, updatedCache);
+      } else {
+        // No live cache entry — just invalidate so the next load re-fetches.
+        invalidateCache(resolvedUserId, yearNum, monthNum);
+      }
+
+      // Revoke the local blob URL now that we have the signed URL; if we fell
+      // back to blobUrl itself don't double-revoke it below.
+      if (stampUrl !== blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
 
       setStamps((prev) => {
         const next = new Map(prev);
         const previousUrl = next.get(dateStr);
-        if (previousUrl && previousUrl !== blobUrl) {
-          URL.revokeObjectURL(previousUrl);
+        if (previousUrl && previousUrl !== stampUrl) {
+          if (previousUrl.startsWith("blob:")) URL.revokeObjectURL(previousUrl);
         }
-        next.set(dateStr, blobUrl);
+        next.set(dateStr, stampUrl);
         return next;
       });
     },
