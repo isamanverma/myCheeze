@@ -1,9 +1,8 @@
 import "./globals.css";
 
-import { Geist, Geist_Mono } from "next/font/google";
-
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 
 const BASE_URL = "https://mycheeze.vercel.app";

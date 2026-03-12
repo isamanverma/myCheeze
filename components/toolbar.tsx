@@ -1,5 +1,6 @@
 "use client";
 
+import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import {
   CalendarBlank,
   CaretLeft,
@@ -9,10 +10,8 @@ import {
   Rows,
   Sun,
 } from "@phosphor-icons/react";
-import { Show, SignInButton, UserButton } from "@clerk/nextjs";
-
-import { Button } from "@/components/ui/button";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
 
 export type ViewMode = "month" | "week";
 
@@ -76,7 +75,7 @@ export function Toolbar({
         <button
           type="button"
           onClick={onToday}
-          className="flex items-baseline gap-2 rounded-xl px-3 py-1.5 transition-colors hover:bg-muted sm:gap-2.5 sm:px-4"
+          className="flex items-baseline gap-1 rounded-xl px-2 py-1 transition-colors hover:bg-muted sm:gap-2.5 sm:px-4 sm:py-1.5"
         >
           <span className="text-lg font-semibold tracking-tight text-foreground sm:text-2xl">
             {MONTH_NAMES[month - 1]}
@@ -100,15 +99,15 @@ export function Toolbar({
             variant="ghost"
             size="sm"
             onClick={onToday}
-            className="ml-1 text-xs text-muted-foreground"
+            className="ml-1 hidden text-xs text-muted-foreground sm:inline-flex"
           >
             Today
           </Button>
         )}
       </div>
 
-      {/* Center: Logo + Wordmark */}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2">
+      {/* Center: Logo + Wordmark — hidden on mobile to avoid overlap */}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden items-center gap-2 sm:flex">
         <Image
           src="/icon.png"
           alt="Cheeze logo"
@@ -173,12 +172,12 @@ export function Toolbar({
           )}
         </Button>
 
-        {/* Export */}
+        {/* Export — hidden on mobile */}
         <Button
           variant="outline"
           size="sm"
           onClick={onExport}
-          className="gap-1.5"
+          className="hidden gap-1.5 sm:inline-flex"
         >
           <Export size={16} weight="bold" />
           <span className="hidden sm:inline">Export</span>

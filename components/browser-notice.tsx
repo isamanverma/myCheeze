@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Info, X } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { isFileSystemAccessSupported } from "@/lib/folder-storage";
 

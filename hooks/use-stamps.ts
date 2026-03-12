@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-
 import { useAuth } from "@clerk/nextjs";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const DAILY_STAMP_LIMIT_BYTES = 10 * 1024;
 // How long a cached month is considered fresh (30 minutes)

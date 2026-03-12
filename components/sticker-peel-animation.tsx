@@ -1,8 +1,9 @@
 "use client";
 
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { VisuallyHidden } from "radix-ui";
 import { Trash } from "@phosphor-icons/react";
+import Image from "next/image";
+import { VisuallyHidden } from "radix-ui";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 interface StickerPeelAnimationProps {
   open: boolean;
@@ -20,7 +21,7 @@ export function StickerPeelAnimation({
   onCancel,
 }: StickerPeelAnimationProps) {
   const label = dateStr
-    ? new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
+    ? new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
         month: "long",
         day: "numeric",
       })
@@ -37,11 +38,14 @@ export function StickerPeelAnimation({
           {/* Stamp preview */}
           {stampUrl && (
             <div className="relative">
-              <img
+              <Image
                 src={stampUrl}
                 alt="Stamp"
+                width={112}
+                height={159}
                 className="h-auto w-28 rounded opacity-70"
                 style={{ filter: "grayscale(0.3)" }}
+                unoptimized
               />
               <div className="absolute inset-0 rounded bg-destructive/10 ring-1 ring-destructive/20" />
             </div>

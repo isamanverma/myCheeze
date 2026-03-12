@@ -1,18 +1,24 @@
 "use client";
 
+import { Stamp as StampIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { processStampImage, type CropArea } from "@/lib/image-processor";
-import { UploadSimple, Stamp as StampIcon } from "@phosphor-icons/react";
+import { type CropArea, processStampImage } from "@/lib/image-processor";
+import {
+  drawStampBorder,
+  drawStampClip,
+  drawStampOutline,
+} from "./stamp-cutter-dialog/canvas-helpers";
+import { PreviewPanel } from "./stamp-cutter-dialog/preview-panel";
+import { UploadPanel } from "./stamp-cutter-dialog/upload-panel";
 
 interface StampCutterDialogProps {
   open: boolean;
@@ -45,34 +51,49 @@ export function StampCutterDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) {
-      setFile(null);
-      setImgSrc((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
-      setZoom(1);
-      setPan({ x: 0, y: 0 });
-      setProcessing(false);
-    }
+    if (open) return;
+
+    setFile(null);
+    setImgSrc((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    setProcessing(false);
   }, [open]);
+
+  const resetImageSelection = useCallback(() => {
+    setFile(null);
+    setImgSrc((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    setImgNatW(0);
+    setImgNatH(0);
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const f = e.target.files?.[0];
-      if (!f) return;
-      setFile(f);
-      const url = URL.createObjectURL(f);
-      // Revoke the previous preview blob URL before replacing it so the
-      // browser cannot recycle the same URL token for a different file,
-      // which would cause the old image to appear when the new one is loaded.
+      const nextFile = e.target.files?.[0];
+      if (!nextFile) return;
+
+      setFile(nextFile);
+      const url = URL.createObjectURL(nextFile);
+
+      // Revoke previous preview URL before replacing it.
       setImgSrc((prev) => {
         if (prev) URL.revokeObjectURL(prev);
         return url;
       });
+
       setZoom(1);
       setPan({ x: 0, y: 0 });
-      // Read natural dimensions from the same URL — no second createObjectURL needed.
+
       const img = new Image();
       img.onload = () => {
         setImgNatW(img.naturalWidth);
@@ -83,15 +104,13 @@ export function StampCutterDialog({
     [],
   );
 
-  // Draw preview on canvas
   useEffect(() => {
     if (!imgSrc || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d")!;
 
-    // Guard against stale draws: if zoom/pan fires a new effect before this
-    // image finishes loading, the cleanup sets cancelled = true so the
-    // outdated onload callback skips painting over the fresher frame.
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
     let cancelled = false;
 
     const img = new Image();
@@ -100,13 +119,11 @@ export function StampCutterDialog({
 
       ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
 
-      // Background
-      drawStampOutline(ctx, PREVIEW_W, PREVIEW_H);
+      drawStampOutline(ctx, { width: PREVIEW_W, height: PREVIEW_H });
       ctx.save();
-      drawStampClip(ctx, PREVIEW_W, PREVIEW_H);
+      drawStampClip(ctx, { width: PREVIEW_W, height: PREVIEW_H });
       ctx.clip();
 
-      // Scale image to cover the preview area
       const baseScale = Math.max(
         PREVIEW_W / img.naturalWidth,
         PREVIEW_H / img.naturalHeight,
@@ -120,8 +137,9 @@ export function StampCutterDialog({
       ctx.drawImage(img, drawX, drawY, drawW, drawH);
       ctx.restore();
 
-      drawStampBorder(ctx, PREVIEW_W, PREVIEW_H);
+      drawStampBorder(ctx, { width: PREVIEW_W, height: PREVIEW_H });
     };
+
     img.src = imgSrc;
 
     return () => {
@@ -129,8 +147,16 @@ export function StampCutterDialog({
     };
   }, [imgSrc, zoom, pan]);
 
+  const getCanvasScale = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return 1;
+
+    const rect = canvas.getBoundingClientRect();
+    return rect.width > 0 ? PREVIEW_W / rect.width : 1;
+  }, []);
+
   const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
       setIsDragging(true);
       setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
     },
@@ -138,8 +164,9 @@ export function StampCutterDialog({
   );
 
   const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!isDragging) return;
+
       setPan({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
@@ -152,8 +179,43 @@ export function StampCutterDialog({
     setIsDragging(false);
   }, []);
 
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLCanvasElement>) => {
+      const touch = e.touches[0];
+      const scale = getCanvasScale();
+
+      setIsDragging(true);
+      setDragStart({
+        x: touch.clientX / scale - pan.x,
+        y: touch.clientY / scale - pan.y,
+      });
+    },
+    [pan, getCanvasScale],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent<HTMLCanvasElement>) => {
+      if (!isDragging) return;
+
+      e.preventDefault();
+      const touch = e.touches[0];
+      const scale = getCanvasScale();
+
+      setPan({
+        x: touch.clientX / scale - dragStart.x,
+        y: touch.clientY / scale - dragStart.y,
+      });
+    },
+    [isDragging, dragStart, getCanvasScale],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
   const handleStick = useCallback(async () => {
-    if (!file || !selectedDate) return;
+    if (!file || !selectedDate || imgNatW <= 0 || imgNatH <= 0) return;
+
     setProcessing(true);
 
     try {
@@ -187,7 +249,7 @@ export function StampCutterDialog({
   }, [file, selectedDate, imgNatW, imgNatH, zoom, pan, onStick, onOpenChange]);
 
   const formattedDate = selectedDate
-    ? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
+    ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-US", {
         month: "long",
         day: "numeric",
         year: "numeric",
@@ -208,52 +270,26 @@ export function StampCutterDialog({
 
         <div className="flex flex-col items-center gap-4">
           {!imgSrc ? (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex w-[260px] cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/50 transition-colors hover:border-muted-foreground/30 hover:bg-muted"
-              style={{ height: `${PREVIEW_H}px` }}
-            >
-              <UploadSimple
-                size={32}
-                weight="light"
-                className="text-muted-foreground/50"
-              />
-              <span className="text-sm text-muted-foreground">
-                Click to upload a photo
-              </span>
-            </button>
+            <UploadPanel
+              previewWidth={PREVIEW_W}
+              previewHeight={PREVIEW_H}
+              onPickFile={() => fileInputRef.current?.click()}
+            />
           ) : (
-            <div className="flex flex-col items-center gap-3">
-              <canvas
-                ref={canvasRef}
-                width={PREVIEW_W}
-                height={PREVIEW_H}
-                className="cursor-grab rounded-sm active:cursor-grabbing"
-                style={{
-                  touchAction: "none",
-                  width: PREVIEW_W,
-                  height: PREVIEW_H,
-                }}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-              />
-              <div className="flex w-full items-center gap-3 px-2">
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Zoom
-                </span>
-                <Slider
-                  value={[zoom]}
-                  onValueChange={(v) => setZoom(v[0])}
-                  min={1}
-                  max={3}
-                  step={0.05}
-                  className="flex-1"
-                />
-              </div>
-            </div>
+            <PreviewPanel
+              previewWidth={PREVIEW_W}
+              previewHeight={PREVIEW_H}
+              isDragging={isDragging}
+              zoom={zoom}
+              onZoomChange={setZoom}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              canvasRef={canvasRef}
+            />
           )}
 
           <input
@@ -270,16 +306,7 @@ export function StampCutterDialog({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                setFile(null);
-                setImgSrc((prev) => {
-                  if (prev) URL.revokeObjectURL(prev);
-                  return null;
-                });
-                setZoom(1);
-                setPan({ x: 0, y: 0 });
-                if (fileInputRef.current) fileInputRef.current.value = "";
-              }}
+              onClick={resetImageSelection}
               className="text-muted-foreground"
             >
               Change photo
@@ -299,77 +326,4 @@ export function StampCutterDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-// -- Canvas drawing helpers for 26:37 stamp shape --
-
-function drawStampClip(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  const base = Math.min(w, h);
-  const scallop = base * 0.03;
-  const spacing = base * 0.075;
-  const margin = base * 0.02;
-
-  ctx.beginPath();
-  ctx.moveTo(margin, margin);
-
-  const topCount = Math.floor((w - 2 * margin) / spacing);
-  const topOff = (w - 2 * margin - topCount * spacing) / 2;
-  for (let i = 0; i <= topCount; i++) {
-    ctx.arc(margin + topOff + i * spacing, margin, scallop, Math.PI, 0, true);
-  }
-  ctx.lineTo(w - margin, margin);
-
-  const rightCount = Math.floor((h - 2 * margin) / spacing);
-  const rightOff = (h - 2 * margin - rightCount * spacing) / 2;
-  for (let i = 0; i <= rightCount; i++) {
-    ctx.arc(
-      w - margin,
-      margin + rightOff + i * spacing,
-      scallop,
-      -Math.PI / 2,
-      Math.PI / 2,
-      true,
-    );
-  }
-  ctx.lineTo(w - margin, h - margin);
-
-  const bottomCount = Math.floor((w - 2 * margin) / spacing);
-  const bottomOff = (w - 2 * margin - bottomCount * spacing) / 2;
-  for (let i = bottomCount; i >= 0; i--) {
-    ctx.arc(
-      margin + bottomOff + i * spacing,
-      h - margin,
-      scallop,
-      0,
-      Math.PI,
-      true,
-    );
-  }
-  ctx.lineTo(margin, h - margin);
-
-  const leftCount = Math.floor((h - 2 * margin) / spacing);
-  const leftOff = (h - 2 * margin - leftCount * spacing) / 2;
-  for (let i = leftCount; i >= 0; i--) {
-    ctx.arc(
-      margin,
-      margin + leftOff + i * spacing,
-      scallop,
-      Math.PI / 2,
-      -Math.PI / 2,
-      true,
-    );
-  }
-  ctx.closePath();
-}
-
-function drawStampOutline(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  ctx.fillStyle = "#F0F0F0";
-  ctx.fillRect(0, 0, w, h);
-}
-
-function drawStampBorder(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  drawStampClip(ctx, w, h);
-  ctx.strokeStyle = "rgba(128,128,128,0.2)";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
 }

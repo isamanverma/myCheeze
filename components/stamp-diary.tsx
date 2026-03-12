@@ -1,18 +1,19 @@
 "use client";
 
-import { KeyHint, WaveDivider } from "./illustrations";
-import { useCallback, useEffect, useState } from "react";
-
+import { useClerk } from "@clerk/nextjs";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
+import type { ViewMode } from "@/hooks/use-stamps";
+import { useStamps } from "@/hooks/use-stamps";
+import { useTheme } from "@/hooks/use-theme";
 import { CalendarGrid } from "./calendar-grid";
 import { ExportOverlay } from "./export-overlay";
 import { StampCutterDialog } from "./stamp-cutter-dialog";
+import { FooterHints } from "./stamp-diary/footer-hints";
+import { ShortcutsModal } from "./stamp-diary/shortcuts-modal";
+import { useDiaryKeyboardShortcuts } from "./stamp-diary/use-diary-keyboard-shortcuts";
 import { StickerPeelAnimation } from "./sticker-peel-animation";
 import { Toolbar } from "./toolbar";
-import type { ViewMode } from "@/hooks/use-stamps";
-import { toast } from "sonner";
-import { useClerk } from "@clerk/nextjs";
-import { useStamps } from "@/hooks/use-stamps";
-import { useTheme } from "@/hooks/use-theme";
 
 export interface StampDiaryProps {
   initialYear: number;
@@ -22,7 +23,7 @@ export interface StampDiaryProps {
 }
 
 function fmtDate(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
+  const d = new Date(`${dateStr}T00:00:00`);
   return `${d.getDate()} ${d.toLocaleString("en-US", { month: "long" })}, ${d.getFullYear()}`;
 }
 
@@ -49,60 +50,29 @@ export function StampDiary({
     goToToday,
     dailyLimitBytes,
   } = useStamps({ initialYear, initialMonth, initialUserId, initialStamps });
-  const { openSignIn } = useClerk();
 
+  const { openSignIn } = useClerk();
   const { isDark, toggleTheme } = useTheme();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [peelOpen, setPeelOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
-  // ── Keyboard shortcuts ──────────────────────────────────────────────
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      // Don't interfere when a dialog is open or an input is focused
-      if (dialogOpen || exportOpen) return;
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-
-      switch (e.key) {
-        case "ArrowLeft":
-          e.preventDefault();
-          goToPrevMonth();
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          goToNextMonth();
-          break;
-        case "t":
-        case "T":
-          e.preventDefault();
-          goToToday();
-          toast("Jumped to today", {
-            description: fmtDate(new Date().toISOString().slice(0, 10)),
-          });
-          break;
-        case "d":
-        case "D":
-          e.preventDefault();
-          toggleTheme();
-          break;
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
+  useDiaryKeyboardShortcuts({
     dialogOpen,
     exportOpen,
-    goToPrevMonth,
-    goToNextMonth,
-    goToToday,
-    toggleTheme,
-  ]);
+    peelOpen,
+    onPrevMonth: goToPrevMonth,
+    onNextMonth: goToNextMonth,
+    onToday: goToToday,
+    onToggleTheme: toggleTheme,
+    onViewModeChange: setViewMode,
+    onOpenShortcuts: () => setShortcutsOpen(true),
+    onCloseShortcuts: () => setShortcutsOpen(false),
+  });
 
-  // ── Date click ──────────────────────────────────────────────────────
   const handleDateClick = useCallback(
     (dateStr: string) => {
       if (!userId) {
@@ -122,12 +92,14 @@ export function StampDiary({
       setSelectedDate(dateStr);
       setDialogOpen(true);
     },
-    [stamps, userId],
+    [stamps, userId, openSignIn],
   );
 
   const handlePeelConfirm = useCallback(() => {
     if (!selectedDate) return;
+
     setPeelOpen(false);
+
     removeStamp(selectedDate)
       .then(() => {
         toast("Stamp removed", { description: fmtDate(selectedDate) });
@@ -139,7 +111,6 @@ export function StampDiary({
       });
   }, [selectedDate, removeStamp]);
 
-  // ── Stick handler ───────────────────────────────────────────────────
   const handleStick = useCallback(
     async (dateStr: string, blobUrl: string, blob: Blob) => {
       try {
@@ -160,12 +131,10 @@ export function StampDiary({
     [addStamp],
   );
 
-  // ── Export ──────────────────────────────────────────────────────────
   const handleExport = useCallback(() => {
     setExportOpen(true);
   }, []);
 
-  // ── View mode ──────────────────────────────────────────────────────
   const handleViewModeChange = useCallback(
     (mode: ViewMode) => {
       setViewMode(mode);
@@ -173,7 +142,6 @@ export function StampDiary({
     [setViewMode],
   );
 
-  // ── Loading / hydration state ──────────────────────────────────────
   if (loading || authLoading) {
     return (
       <div className="flex h-dvh w-full items-center justify-center bg-background">
@@ -187,10 +155,8 @@ export function StampDiary({
 
   const isWeek = viewMode === "week";
 
-  // ── Render ─────────────────────────────────────────────────────────
   return (
     <div className="flex h-dvh w-full flex-col overflow-hidden bg-background font-sans">
-      {/* Toolbar — fixed at top */}
       <div className="mx-auto w-full max-w-6xl shrink-0 px-3 sm:px-6">
         <Toolbar
           year={year}
@@ -206,15 +172,16 @@ export function StampDiary({
         />
       </div>
 
-      {/* Calendar — fills remaining space in month view, shrinks in week view */}
       <div
-        className={`mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 pb-2 sm:px-6 sm:pb-4 ${
-          isWeek ? "shrink-0" : "flex-1 overflow-hidden"
+        className={`mx-auto flex w-full max-w-6xl flex-col px-3 pb-2 sm:px-6 sm:pb-4 ${
+          isWeek
+            ? "flex-1 items-center justify-center gap-3"
+            : "min-h-0 flex-1 overflow-hidden"
         }`}
       >
         <div
           className={`relative flex flex-col rounded-xl bg-card ring-1 ring-border ${
-            isWeek ? "shrink-0" : "flex-1 overflow-hidden"
+            isWeek ? "w-full shrink-0" : "flex-1 overflow-hidden"
           }`}
         >
           <div
@@ -236,32 +203,9 @@ export function StampDiary({
           </div>
         </div>
 
-        {/* Footer hints */}
-        <div className="mt-1.5 flex flex-col items-center gap-1 sm:mt-2">
-          <WaveDivider className="text-foreground" />
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-            <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground/50">
-              <KeyHint>←</KeyHint>
-              <KeyHint>→</KeyHint>
-              navigate
-            </span>
-            <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground/50">
-              <KeyHint>T</KeyHint>
-              today
-            </span>
-            <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground/50">
-              <KeyHint>D</KeyHint>
-              theme
-            </span>
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
-              · click a date to add · {Math.round(dailyLimitBytes / 1024)}
-              KB/day/stamp
-            </span>
-          </div>
-        </div>
+        <FooterHints dailyLimitBytes={dailyLimitBytes} />
       </div>
 
-      {/* Stamp Cutter Dialog */}
       <StampCutterDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -269,7 +213,6 @@ export function StampDiary({
         onStick={handleStick}
       />
 
-      {/* Sticker Peel Animation */}
       <StickerPeelAnimation
         open={peelOpen}
         stampUrl={selectedDate ? stamps.get(selectedDate) : undefined}
@@ -278,7 +221,6 @@ export function StampDiary({
         onCancel={() => setPeelOpen(false)}
       />
 
-      {/* Export Overlay */}
       <ExportOverlay
         open={exportOpen}
         onOpenChange={setExportOpen}
@@ -287,6 +229,8 @@ export function StampDiary({
         stamps={stamps}
         isDark={isDark}
       />
+
+      <ShortcutsModal open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>
   );
 }

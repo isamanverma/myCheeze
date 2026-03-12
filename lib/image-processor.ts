@@ -184,7 +184,10 @@ export async function processStampImage(
   const canvas = document.createElement("canvas");
   canvas.width = outW;
   canvas.height = outH;
-  const ctx = canvas.getContext("2d")!;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Failed to acquire 2D canvas context");
+  }
 
   // Adjust source rect to exactly match the 26:37 output ratio
   let srcX = crop.x;
@@ -227,7 +230,12 @@ export async function processStampImage(
     const smallCanvas = document.createElement("canvas");
     smallCanvas.width = newW;
     smallCanvas.height = newH;
-    const smallCtx = smallCanvas.getContext("2d")!;
+    const smallCtx = smallCanvas.getContext("2d");
+    if (!smallCtx) {
+      throw new Error(
+        "Failed to acquire 2D canvas context for downscaled canvas",
+      );
+    }
     smallCtx.drawImage(canvas, 0, 0, newW, newH);
 
     quality = 0.5;
@@ -246,7 +254,13 @@ export async function processStampImage(
       const nextCanvas = document.createElement("canvas");
       nextCanvas.width = nextW;
       nextCanvas.height = nextH;
-      nextCanvas.getContext("2d")!.drawImage(workCanvas, 0, 0, nextW, nextH);
+      const nextCtx = nextCanvas.getContext("2d");
+      if (!nextCtx) {
+        throw new Error(
+          "Failed to acquire 2D canvas context for iterative downscale",
+        );
+      }
+      nextCtx.drawImage(workCanvas, 0, 0, nextW, nextH);
 
       workCanvas = nextCanvas;
       blob = await canvasToBlob(workCanvas, 0.45);

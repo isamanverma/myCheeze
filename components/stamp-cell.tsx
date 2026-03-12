@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo } from "react";
 import { generateStampSVG } from "@/lib/image-processor";
 
@@ -48,11 +49,11 @@ export function StampCell({
       onClick={isCurrentMonth ? onClick : undefined}
       className={`
         relative flex flex-col items-center justify-center
-        rounded-lg transition-all duration-150
+        rounded-lg border border-border/70 transition-all duration-150
         ${isStrip ? "aspect-square" : "min-h-0"}
-        ${!exportMode && isCurrentMonth ? "cursor-pointer hover:bg-muted/50" : "cursor-default"}
+        ${!exportMode && isCurrentMonth ? "cursor-pointer hover:bg-muted/50 hover:border-border" : "cursor-default"}
         ${isCurrentMonth ? "" : "opacity-20"}
-        ${isToday ? "bg-primary/[0.06] ring-1 ring-primary/15" : ""}
+        ${isToday ? "bg-primary/6 ring-1 ring-primary/25 border-primary/30" : ""}
       `}
       disabled={exportMode || !isCurrentMonth}
     >
@@ -66,10 +67,12 @@ export function StampCell({
               "drop-shadow(1px 2px 5px rgba(0,0,0,0.18)) drop-shadow(0 1px 2px rgba(0,0,0,0.1))",
           }}
         >
-          <div className="relative h-full aspect-[26/37]">
-            <img
+          <div className="relative h-full aspect-26/37">
+            <Image
               src={stampUrl}
               alt={`Stamp for ${dateStr}`}
+              fill
+              sizes="(max-width: 640px) 64px, 96px"
               className="h-full w-full object-cover"
               style={{
                 maskImage: `url("${STAMP_MASK}")`,
@@ -78,18 +81,19 @@ export function StampCell({
                 WebkitMaskSize: "100% 100%",
               }}
               draggable={false}
+              unoptimized
               onError={() => onStampLoadError?.(dateStr)}
             />
           </div>
         </div>
       )}
 
-      {/* Day number — bottom-left */}
+      {/* Day number — top-left */}
       <span
         className={`
           absolute z-10 leading-none select-none
-          ${isStrip ? "bottom-1.5 left-2.5 text-sm" : "bottom-0.5 left-1 text-[10px] sm:bottom-1 sm:left-1.5 sm:text-xs"}
-          ${isToday ? "font-bold text-primary" : "text-muted-foreground/50"}
+          ${isStrip ? "top-1.5 left-2.5 text-sm" : "top-0.5 left-1 text-[10px] sm:top-1 sm:left-1.5 sm:text-xs"}
+          ${isToday ? "font-bold text-primary" : "text-muted-foreground/60"}
           ${!isCurrentMonth ? "text-muted-foreground/25" : ""}
           ${stampUrl ? "mix-blend-multiply dark:mix-blend-screen" : ""}
         `}

@@ -116,7 +116,7 @@ async function idbLoadStamps(
       const key = cursor.key as string;
       if (typeof key === "string" && key.startsWith(prefix)) {
         const record = cursor.value as { blob: Blob };
-        if (record && record.blob) {
+        if (record?.blob) {
           const url = URL.createObjectURL(record.blob);
           stamps.set(key, url);
         }

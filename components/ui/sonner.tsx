@@ -1,14 +1,14 @@
 "use client";
 
-import { useTheme } from "@/hooks/use-theme";
-import { Toaster as Sonner, type ToasterProps } from "sonner";
 import {
   CheckCircleIcon,
   InfoIcon,
+  SpinnerIcon,
   WarningIcon,
   XCircleIcon,
-  SpinnerIcon,
 } from "@phosphor-icons/react";
+import { Toaster as Sonner, type ToasterProps } from "sonner";
+import { useTheme } from "@/hooks/use-theme";
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { isDark } = useTheme();

@@ -50,7 +50,14 @@ export function StampIllustration({
       {/* Sun */}
       <circle cx="74" cy="44" r="10" fill="currentColor" opacity="0.06" />
       {/* Small cloud */}
-      <ellipse cx="36" cy="40" rx="12" ry="5" fill="currentColor" opacity="0.04" />
+      <ellipse
+        cx="36"
+        cy="40"
+        rx="12"
+        ry="5"
+        fill="currentColor"
+        opacity="0.04"
+      />
       {/* "STAMP" text placeholder */}
       <rect
         x="28"
@@ -112,16 +119,25 @@ export function EmptyCalendarIllustration({
         fill="currentColor"
         opacity="0.04"
       />
-      <rect x="30" y="32" width="140" height="8" fill="currentColor" opacity="0.04" />
+      <rect
+        x="30"
+        y="32"
+        width="140"
+        height="8"
+        fill="currentColor"
+        opacity="0.04"
+      />
       {/* Calendar dots — 7x4 grid */}
       {Array.from({ length: 28 }, (_, i) => {
         const col = i % 7;
         const row = Math.floor(i / 7);
+        const cx = 50 + col * 20;
+        const cy = 54 + row * 18;
         return (
           <circle
-            key={i}
-            cx={50 + col * 20}
-            cy={54 + row * 18}
+            key={`dot-${col}-${row}`}
+            cx={cx}
+            cy={cy}
             r="2.5"
             fill="currentColor"
             opacity={0.05 + (i % 5) * 0.015}
@@ -160,11 +176,7 @@ export function EmptyCalendarIllustration({
   );
 }
 
-export function FolderIllustration({
-  className = "",
-}: {
-  className?: string;
-}) {
+export function FolderIllustration({ className = "" }: { className?: string }) {
   return (
     <svg
       width="48"
